@@ -1,71 +1,74 @@
-# coding=utf-8
 import xbmc, xbmcgui, xbmcplugin, xbmcaddon
-import urllib2,re,os
-from cgi import parse_qs
-
-__path__ = sys.argv[0]
-__handle__ = int(sys.argv[1])
+import urllib2
+import re
+import os
+import sys
+import cgi as urlparse
 
 BASE_URL = 'http://onside.dk'
 
+class OnsideTV(object):
+    def listCategories(self):
+        html = self.downloadUrl(BASE_URL + '/onsidetv')
+        for m in re.finditer('<a href="/onsidetv/([^/]+)/[^<]+>([^<]+)</a>', html, re.DOTALL):
+            slug = m.group(1)
+            name = m.group(2)
 
-def CATEGORIES(): 
-	xbmcplugin.setContent(__handle__, 'tvshows')
-        req = urllib2.Request(BASE_URL+'/onsidetv')
-        req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
-        response = urllib2.urlopen(req)
-        link=response.read()
-        response.close()
-	
-        match=re.compile('class="right_aligned_date"><a href="(.*?)" class="video_archive_link">(.*?)</a>', re.DOTALL).findall(link)
+            item = xbmcgui.ListItem(name[5:], iconImage=ICON)
+            xbmcplugin.addDirectoryItem(HANDLE, PATH + '?slug='+ slug + '&page=1', item, True)
 
-        for url, name in match:
-		addDir(name.replace('Mere ', ''), BASE_URL + url, "subcat", "")
-	xbmcplugin.addSortMethod(__handle__, xbmcplugin.SORT_METHOD_TITLE)
-	xbmcplugin.endOfDirectory(__handle__)
-                                       
-                    
-def PROGRAMLIST(url):
-	xbmcplugin.setContent(__handle__, 'tvshows')
-        req = urllib2.Request(url)
-        req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
-        response = urllib2.urlopen(req)
-        link=response.read()
-        response.close()
-        match=re.compile('class="item(?: item_first)?">.*?<a href="(.*?)".*?<img src="(.*?)".*?class="video-title">(.*?)</div>',re.DOTALL).findall(link)
-	
-        for url, image, title in match:
-		addDir(title, BASE_URL + url,'playfile', image)
-	nextlink = re.search('class="next" href="(.*?)"',link,re.DOTALL)
-	if nextlink:
-		addDir('Næste side >>', BASE_URL + nextlink.group(1), "subcat", "")
-	xbmcplugin.endOfDirectory(__handle__)
-
-def PLAYPROGRAM(url):
-	xbmc.output(url)
-        req = urllib2.Request(url)
-        req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
-        response = urllib2.urlopen(req)
-        link=response.read()
-        response.close()
-	videoresult = re.search('onside_video_player" href="(.*?)".*?src="(.*?)"',link,re.DOTALL)
-	videoinfo = re.search('video_title">(.*?)</div>.*?video_description">(?:<p>)?(.*?)</',link,re.DOTALL)
-	item = xbmcgui.ListItem(videoinfo.group(1), iconImage=videoresult.group(2), thumbnailImage=videoresult.group(2))
-	item.setInfo('video', infoLabels={'title': videoinfo.group(1),'plot': videoinfo.group(2)})
-	xbmc.output(videoresult.group(1))
-	xbmc.Player().play(videoresult.group(1),item)
-
-def addDir(name,url,mode,iconimage):
-	item = xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
-	item.setInfo(type = 'Video', infoLabels = {'Title' : name })
-	ok=xbmcplugin.addDirectoryItem(__handle__, __path__ + '?mode='+mode+'&url='+ url + '&title=' + name, item, True)
-        return ok   
+        xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_TITLE)
+        xbmcplugin.endOfDirectory(HANDLE)
 
 
-params = parse_qs(sys.argv[2][1:])
-if(params.has_key('mode') and params['mode'][0] == 'subcat'):
-	PROGRAMLIST(params['url'][0])
-elif(params.has_key('mode') and params['mode'][0] == 'playfile'):
-	PLAYPROGRAM(params['url'][0])
-else:
-	CATEGORIES()
+    def listPrograms(self, slug, page):
+        html = self.downloadUrl(BASE_URL + '/onsidetv/' + slug + '/' + str(page))
+        for m in re.finditer('<a href="/fodbold-video/([^"]+)".*?<img src="(.*?)".*?class="video-title">(.*?)</div>.*?class="desc">(.*?)</div>.*?class="date">(.*?)</div>', html, re.DOTALL):
+            slug = m.group(1)
+            image = m.group(2)
+            title = m.group(3)
+            description = m.group(4)
+            date = m.group(5)
+
+            icon = BASE_URL + image
+            icon = icon.replace('136x91', 'onsidetv_658x366')
+            item = xbmcgui.ListItem(title, iconImage = icon)
+            item.setProperty('IsPlayable', 'true')
+            item.setProperty('Fanart_Image', icon)
+            item.setInfo(type = 'Video', infoLabels = {
+                'title' : title,
+                'plot' : description
+            })
+            xbmcplugin.addDirectoryItem(HANDLE, PATH + '?play=' + slug, item)
+
+        xbmcplugin.endOfDirectory(HANDLE)
+
+    def playProgram(self, slug):
+        html = self.downloadUrl(BASE_URL + '/onsidetv/' + slug)
+        m = re.search('id="onside_video_player" href="(.*?)"', html)
+
+        item = xbmcgui.ListItem(path = m.group(1))
+        xbmcplugin.setResolvedUrl(HANDLE, True, item)
+
+    def downloadUrl(self, url):
+        u = urllib2.urlopen(url)
+        data = u.read()
+        u.close()
+        return data
+
+if __name__ == '__main__':
+    ADDON = xbmcaddon.Addon(id = 'plugin.video.onside.tv')
+    PATH = sys.argv[0]
+    HANDLE = int(sys.argv[1])
+    PARAMS = urlparse.parse_qs(sys.argv[2][1:])
+
+    #FANART = os.path.join(ADDON.getAddonInfo('path'), 'fanart.jpg')
+    ICON = os.path.join(ADDON.getAddonInfo('path'), 'icon.png')
+
+    otv = OnsideTV()
+    if PARAMS.has_key('slug'):
+        otv.listPrograms(PARAMS['slug'][0], int(PARAMS['page'][0]))
+    elif PARAMS.has_key('play'):
+        otv.playProgram(PARAMS['play'][0])
+    else:
+        otv.listCategories()
