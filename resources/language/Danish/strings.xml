@@ -5,4 +5,6 @@
 	<string id="30500">Generelt</string>
 	<string id="30501">Vis 'Indlæs næste side...'</string>
 
+    <string id="30900">Det opstod en fejl i kommunikationen med Onside TV.</string>
+    <string id="30901">Fejlbeskeden er:</string>
 </strings>

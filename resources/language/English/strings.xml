@@ -4,4 +4,7 @@
     
     <string id="30500">General</string>
     <string id="30501">Show [I]Load next page...[/I]</string>
+
+    <string id="30900">The was a problem communicating with Onside TV.</string>
+    <string id="30901">The error message was:</string>
 </strings>

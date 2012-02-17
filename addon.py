@@ -1,11 +1,35 @@
-import xbmc, xbmcgui, xbmcplugin, xbmcaddon
+#
+#      Copyright (C) 2012 Tommy Winther
+#      http://tommy.winther.nu
+#
+#  This Program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2, or (at your option)
+#  any later version.
+#
+#  This Program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this Program; see the file LICENSE.txt.  If not, write to
+#  the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+#  http://www.gnu.org/copyleft/gpl.html
+#
+import xbmcgui, xbmcplugin, xbmcaddon
 import urllib2
 import re
 import os
 import sys
-import cgi as urlparse
+import urlparse
+import buggalo
 
 BASE_URL = 'http://onside.dk'
+buggalo.SUBMIT_URL = 'http://tommy.winther.nu/exception/submit.php'
+
+class OnsideException(Exception):
+    pass
 
 class OnsideTV(object):
     def listCategories(self):
@@ -22,7 +46,6 @@ class OnsideTV(object):
         xbmcplugin.endOfDirectory(HANDLE)
 
     def listPrograms(self, slug, page):
-        print BASE_URL + '/onsidetv/' + slug + '/' + str(page)
         html = self.downloadUrl(BASE_URL + '/onsidetv/' + slug + '/' + str(page))
         for m in re.finditer('<a href="/fodbold-video/([^"]+)".*?<img src="(.*?)".*?class="video-title">(.*?)</div>.*?class="desc">(.*?)</div>.*?class="date">(.*?)</div>', html, re.DOTALL):
             slug = m.group(1)
@@ -37,6 +60,7 @@ class OnsideTV(object):
             item.setProperty('IsPlayable', 'true')
             item.setProperty('Fanart_Image', icon)
             item.setInfo(type = 'video', infoLabels = {
+                'studio' : ADDON.getAddonInfo('name'),
                 'title' : title,
                 'plot' : description,
                 'date' : dateStr[0:10]
@@ -62,10 +86,19 @@ class OnsideTV(object):
         xbmcplugin.setResolvedUrl(HANDLE, True, item)
 
     def downloadUrl(self, url):
-        u = urllib2.urlopen(url)
-        data = u.read()
-        u.close()
-        return data
+        try:
+            u = urllib2.urlopen(url)
+            data = u.read()
+            u.close()
+            return data
+        except Exception, ex:
+            raise OnsideException(ex)
+
+    def showError(self, message):
+        heading = buggalo.getRandomHeading()
+        line1 = ADDON.getLocalizedString(30900)
+        line2 = ADDON.getLocalizedString(30901)
+        xbmcgui.Dialog().ok(heading, line1, line2, message)
 
 if __name__ == '__main__':
     ADDON = xbmcaddon.Addon(id = 'plugin.video.onside.tv')
@@ -77,9 +110,14 @@ if __name__ == '__main__':
     ICON = os.path.join(ADDON.getAddonInfo('path'), 'icon.png')
 
     otv = OnsideTV()
-    if PARAMS.has_key('slug'):
-        otv.listPrograms(PARAMS['slug'][0], int(PARAMS['page'][0]))
-    elif PARAMS.has_key('play'):
-        otv.playProgram(PARAMS['play'][0])
-    else:
-        otv.listCategories()
+    try:
+        if PARAMS.has_key('slug'):
+            otv.listPrograms(PARAMS['slug'][0], int(PARAMS['page'][0]))
+        elif PARAMS.has_key('play'):
+            otv.playProgram(PARAMS['play'][0])
+        else:
+            otv.listCategories()
+    except OnsideException, ex:
+        otv.showError(str(ex))
+    except Exception:
+        buggalo.onExceptionRaised()
