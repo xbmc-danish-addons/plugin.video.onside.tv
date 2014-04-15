@@ -6,6 +6,7 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="xbmcstubs" />
     <orderEntry type="module" module-name="lib" />
+    <orderEntry type="module" module-name="PyAMF-0.6.1" />
   </component>
 </module>
 
